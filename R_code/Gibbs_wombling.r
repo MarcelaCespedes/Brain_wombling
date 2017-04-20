@@ -4,6 +4,13 @@
 # with option to initialise chains at solution or away from solution
 #
 
+########################################################################
+# started: Thursday 3nd Nov - this is the same code as
+# Gibbs_Unbal_IRKwombling.r
+# 35 region MH within Gibbs for unbalanced spatial data set
+#
+
+# this is the final test prior to running it on my AIBL data
 #-------------------------------------------------------
 
 library(ggplot2)
@@ -84,9 +91,6 @@ X.mat.long = as.matrix(rep(data.frame(X.mat), (K*R.vec)))
 
 Sigma.0.inv = dat$Sigma.0.inv   # <======== beta priors
 mean.0 = c(0, 0)
-
-# I think I'll have to also specify the prior for s2, s2s, etc
-# and finadle with X.mat, etc
 
 # prior for s2s
 sh.s2s = 1; rat.s2s = 2
@@ -401,4 +405,3 @@ multiplot(op$b1.ac, op$b1.trace, op$b1.dens, cols =3)
 multiplot(op$sigma.ac, op$sigma.trace, op$sigma.dens, cols =3)
 multiplot(op$ss.ac, op$ss.trace, op$ss.dens, cols =3)
 dev.off()
-
