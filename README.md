@@ -1,5 +1,5 @@
 # Brain_wombling
-This repository provides users full access to the brain wombling model described in the manuscript titles *Baeysian hierarchical models detect differences in cortical thickness and networks along progression towards Alzheimer's disease*, available here (insert EPubs link), submitted to NeuroImage journal.
+This repository provides users full access to the brain wombling model described in the manuscript titles *Bayesian hierarchical models detect differences in cortical thickness and networks along progression towards Alzheimer's disease*, available here (insert EPubs link), submitted to NeuroImage journal.
 
 Intention for this repository is to provide the R code to implement brain wombling on simulated data.
 
