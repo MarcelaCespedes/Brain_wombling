@@ -22,15 +22,21 @@ library(mefa)
 
 rm(list = ls())
 
-source("IRK_35Unbal_genData.r")
-pdf.name<- "35Unbal_high_rhos2s.pdf"
+source("Unbalanced_genData.R")
+pdf.name<- "ROI_35UnbalancedData.pdf"
 
-K=35
-I=30 
+K=35 # 35 ROIs
+I=30  # 30 participants
+
+# number of repeated measures for each participant: unbalanced design
 R.vec<- c(4, 3, 5, 2, 4, 3, 4, 5, 4, 3,
           4, 3, 5, 2, 4, 3, 4, 5, 4, 3, 
           4, 3, 5, 2, 4, 3, 4, 5, 4, 3)  # <=== this vector to be of same length as I
-length(R.vec)
+length(R.vec) # check, this should be equal to I
+
+
+
+
 
 ##
 ## set the number of runs for MCMC scheme
@@ -38,11 +44,10 @@ length(R.vec)
 
 mcmc = 10000
 
-no.female=round(0.5*I); 
-
 ##
-## Set values to generate data
+## Set values to generate wombling data
 ##
+no.female=round(0.5*I) # approx half participants are female
 rho = 0.9
 
 no.Obs<- sum(R.vec)*K  # <=== no obs
@@ -54,26 +59,31 @@ b0 = 3
 b1 = 0.5
 
 # Generate data from model
-dat<- IRK_35Unbal_genData(I = I, no.female=no.female, s2s=s2s, s2=s2, b0=b0, b1=b1, rho.val= rho, R.vec= R.vec,
-                        mcmc = mcmc)
+dat<- Unbalanced_genData(I = I, 
+                         no.female=no.female, 
+                         s2s=s2s, s2=s2, 
+                         b0=b0, 
+                         b1=b1, 
+                         rho.val= rho, 
+                         R.vec= R.vec)
 
-# view data
+# view simulated data
 x11()
 plot(dat$p.dat)
 
 ####################################################################################
-# Set up chains for wobmling algorithm
+# Set up chains for wombling algorithm
 
 beta0= dat$beta0
-beta0[1] = runif(1, min = 2, max = 3) #rnorm(1) 
+# initialise fixed effect chains at random value
+beta0[1] = runif(1, min = 2, max = 3) 
 
 beta1= dat$beta1      # <=== initialised empty chains for model
 beta1[1] = runif(1, min = -0.5, max = 0.5)  #rnorm(1)
 
-Wkeep = dat$Wkeep   # <== To start at the solution
-
+Wkeep = dat$Wkeep 
 load("contig_35Reg.Rdata")
-Wkeep[,,1] = contig_35Reg  # <=== initialise off solution
+Wkeep[,,1] = contig_35Reg  # <=== initialise off solution, at contiguous matrix
 
 cNt<- matrix(0, K, K)
 
@@ -89,6 +99,9 @@ X.mat = dat$X.mat
 
 X.mat.long = as.matrix(rep(data.frame(X.mat), (K*R.vec)))
 
+##
+## Set priors
+##
 Sigma.0.inv = dat$Sigma.0.inv   # <======== beta priors
 mean.0 = c(0, 0)
 
@@ -124,9 +137,15 @@ for(i in 1:I){
 
 e.1<- rep(1, K)
 
-########################################################################################
-# start Gibbs
-########################################################################################
+
+
+
+
+
+
+
+##################################################################################################################################################################
+## start Gibbs sampler
 
 #----------------------------------------------------------------------
 tiMe<- proc.time() 
@@ -134,17 +153,19 @@ pb <- txtProgressBar(style = 3)
 
 for(t in 2:mcmc){
   
-  ##################################################################################
-  # draw the random effects - this will be used for the other samplers below
+  ############################################################################
+  # draw random effects - this will be used for the other samplers below
   # b_i
   
   beta.vec <- c(beta0[t-1], beta1[t-1])
   Q.inv = rho*(diag(K)*rowSums(Wkeep[,,t-1]) - Wkeep[,,t-1]) + (1 - rho)*diag(K) 
   
-  for(i in 1:I){
+  for(i in 1:I){ # draw spatial random effects for each person
     Omega = solve(R.vec[i]/sigma2[t-1]*diag(K) + 1/sigma2.s[t-1]*Q.inv)
     
-    mu = Omega%*%(1/sigma2[t-1]*sum.i.rep[i,] - R.vec[i]/sigma2[t-1]*X.mat[i,]%*%beta.vec*e.1)
+    #mu = Omega%*%(1/sigma2[t-1]*sum.i.rep[i,] - R.vec[i]/sigma2[t-1]*(X.mat[i,]%*%beta.vec))
+    
+    mu = Omega%*%(1/sigma2[t-1]*sum.i.rep[i,] - rep(R.vec[i]/sigma2[t-1]*X.mat[i,]%*%beta.vec, K) )
     b.mat[i, ]<- rmvnorm(1, mean = mu, sigma = Omega)
   }  
   
@@ -158,7 +179,7 @@ for(t in 2:mcmc){
   shape.s2s = (I*K + 2*sh.s2s)/2    
   #shape.s2s                         
   
-  # need to add over all the random effects
+  # Add over all the random effects
   sum.rand.eff<- c()
   for(ii in 1:I){
     sum.rand.eff[ii]<- b.mat[ii,]%*%Q.inv%*%b.mat[ii,]
@@ -174,7 +195,7 @@ for(t in 2:mcmc){
   # update W
   #Wkeep[,,t] <- Wkeep[,,t-1]
   
-  ck.prob<- ck.proposal.m<- matrix(0, K, K)  # Try to do a Metropolis Hastings
+  ck.prob<- ck.proposal.m<- matrix(0, K, K)  # Do a Metropolis Hastings
   w.curr<- Wkeep[,,t-1]
   for(row in 1:(K-1)){
     for(col in (row+1):K){
@@ -213,7 +234,7 @@ for(t in 2:mcmc){
   #sigma2[t] <- sigma2[t-1]
   
   shape.s2 = no.Obs/2 + sh.s2  # note the shape for this distribution won't change
-  shape.s2
+  #shape.s2
   # convert everything to vector form
   rand.long<- as.matrix(rep(data.frame(b.mat), R.vec))# repeat every random effects according to R.vec
   rand.long2<- as.vector(t(rand.long))
@@ -253,9 +274,25 @@ for(t in 2:mcmc){
 }
 
 (proc.time() - tiMe)/60 # time in minutes
+# Took approximately 2.8 hours for 10,000 MCMC iterations
 
 
-#####################   density -----------------------------------------------
+
+
+
+
+
+
+
+
+
+##################################################################
+##################################################################
+## Process MCMC chains
+##
+
+
+#####################   Posterior densities -----------------------------------------------
 p.s2s<- ggplot(data.frame(x = sigma2.s), aes(x=x)) + geom_density() + geom_vline(xintercept = s2s, colour = "red") + 
   theme_bw() + theme(legend.position = "none") + ggtitle("s2s")
 
@@ -269,10 +306,14 @@ p.b1<- ggplot(data.frame(x = beta1), aes(x=x)) + geom_density() + geom_vline(xin
   theme_bw() + theme(legend.position = "none") + ggtitle("b1")
 
 source("multiplot.r")
-x11()
+#x11()
 multiplot(p.s2s, p.s2, p.b0, p.b1, cols = 2)
 
-#################### trace -----------------------------------------------------
+# Note: recovery of spatial scale variance terms is not achieved.
+# This is discussed in detail in the Book chapter. Despite this, 
+# recovery of covariance matrix W is achieved.
+
+#################### Posterior  trace ---------------------------------------
 x = seq(1:mcmc)
 trace.s2s<- ggplot(data.frame(x=x, y = sigma2.s), aes(x=x, y=y)) + geom_line() + geom_hline(yintercept = s2s, colour = "red") + 
   theme_bw() + theme(legend.position = "none") + ggtitle("s2s")
@@ -286,7 +327,6 @@ trace.b0<- ggplot(data.frame(x = x, y = beta0), aes(x=x, y=y)) + geom_line() + g
 trace.b1<- ggplot(data.frame(x = x, y=beta1), aes(x=x,y=y)) + geom_line() + geom_hline(yintercept = b1, colour = "red") + 
   theme_bw() + theme(legend.position = "none") + ggtitle("b1")
 
-#source("multiplot.r")
 x11()
 multiplot(trace.s2s, trace.s2, trace.b0, trace.b1, cols = 2)
 
@@ -322,16 +362,28 @@ x11()
 par(mfrow = c(1,3))
 plot(r.w, main = "W posterior mean")
 plot(r.acc.rate, main = "Acceptance rate for W")
-plot(r.start, main = "Start W",legend = F)
+plot(r.start, main = "Initial W",legend = F)
+
+
+
+##
+## NOTE: above diagnostics did not apply thinning and burn in
+
+
+
+
+
+
+
 
 
 ######################################################
 # now apply thinning and burn in
-#source("MCMC_35_diags.r")
 
 burnIn = floor(mcmc/5)
 thin = 5
 
+source("MCMC_35_diags.r")
 op<- MCMC_35_diags(Wkeep = Wkeep, thin=thin, burnIn=burnIn, beta0=beta0, beta1=beta1,
                    b0.sol = b0, b1.sol =b1, s2=s2, s2s=s2s,
                    sigma2=sigma2, sigma2.s=sigma2.s, mcmc=mcmc, accept.prob = cNt/mcmc)
@@ -362,7 +414,7 @@ plot(op$r.p, main = "Acceptance ratio")
 
 ###################################################################################
 ###################################################################################
-# save to pdf
+# save results to pdf
 pdf.name
 
 pdf(pdf.name, onefile = T)
